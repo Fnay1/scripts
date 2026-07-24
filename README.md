@@ -72,6 +72,16 @@
 > Папки `.../reports/`, `.../Result/`, `*.json` — артефакты запусков по учебным
 > стендам (целевые адреса — приватные `172.23.x.x`).
 
+## os — Повышение привилегий (PEASS-ng)
+
+Пост-эксплуатация: автоматический поиск путей эскалации до root/SYSTEM.
+Сторонний набор **PEASS-ng** (MIT), подробности — в [`os/`](os).
+
+| Объект | Инструмент | ОС |
+|--------|-----------|-----|
+| [`os/linpeas/`](os/linpeas) | **linPEAS** (`linpeas.sh`, `linpeas_small.sh`) | Linux / Unix / macOS |
+| [`os/winpeas/`](os/winpeas) | **winPEAS** (`winPEAS.bat` + `download-exe.sh` для `.exe`) | Windows |
+
 ## Корневые файлы
 
 | Файл | Назначение |
@@ -87,6 +97,8 @@
 ```bash
 pip install requests requests_toolbelt lxml termcolor colorama
 # для отдельных инструментов: sqlmap, ffuf, SecLists (/usr/share/seclists)
+# os/ (PEASS-ng): готовые бинарники/скрипты, зависимостей не требуют
+
 ```
 
 ## Типовой рабочий процесс (blind SQLi)

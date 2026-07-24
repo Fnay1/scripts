@@ -1,2 +1,6 @@
 __pycache__/
 *.pyc
+
+# winPEAS .exe не хранятся в репо (GitHub push-protection: ложные срабатывания
+# secret-scanning на встроенные сигнатуры). Тянуть из релиза: os/winpeas/download-exe.sh
+*.exe
